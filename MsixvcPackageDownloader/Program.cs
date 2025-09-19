@@ -17,7 +17,9 @@ namespace MsixvcPackageDownloader
         /* This is just a POC for this endpoint */
         static async Task Main(string[] args)
         {
-            Console.WriteLine("Initializing...");
+            bool cliMode = args.Length > 0;
+            if (!cliMode)
+                Console.WriteLine("Initializing...");
 
             AuthenticationService? authService = null;
 
@@ -59,68 +61,85 @@ namespace MsixvcPackageDownloader
 
             await GetUpdateXSTSToken(authService.UserToken, authService.DeviceToken);
 
-            Console.WriteLine("Initialization finished!");
+            if (!cliMode)
+                Console.WriteLine("Initialization finished!");
 
-            while (true)
+            var updateHttpClient = new HttpClient();
+
+            if (cliMode)
             {
-                var updateHttpClient = new HttpClient();
-
-                Console.WriteLine("Please enter the ContentId of the package you want to fetch download links for:");
-                var contentId = Console.ReadLine();
-
-                if (!_updateToken.Valid)
+                var contentId = args[0];
+                await ProcessContentId(contentId, updateHttpClient, authService, true);
+            }
+            else
+            {
+                while (true)
                 {
-                    if (!authService.UserToken.Valid || !authService.DeviceToken.Valid)
-                    {
-                        if (!await authService.AuthenticateAsync())
-                        {
-                            Console.WriteLine("Could not regenerate update token. Please restart the app and reauthenticate!");
-                            return;
-                        }
-                    }
+                    Console.WriteLine("Please enter the ContentId of the package you want to fetch download links for:");
+                    var contentId = Console.ReadLine();
+                    if (string.IsNullOrEmpty(contentId))
+                        continue;
 
-                    await GetUpdateXSTSToken(authService.UserToken, authService.DeviceToken);
+                    await ProcessContentId(contentId, updateHttpClient, authService, false);
+                }
+            }
+        }
+
+        private static async Task ProcessContentId(string contentId, HttpClient updateHttpClient, AuthenticationService authService, bool cliMode)
+        {
+            if (!_updateToken.Valid)
+            {
+                if (!authService.UserToken.Valid || !authService.DeviceToken.Valid)
+                {
+                    if (!await authService.AuthenticateAsync())
+                    {
+                        Console.WriteLine("Could not regenerate update token. Please restart the app and reauthenticate!");
+                        return;
+                    }
                 }
 
-                var isValidId = Guid.TryParse(contentId, out var contentGuid);
-                if (!isValidId)
+                await GetUpdateXSTSToken(authService.UserToken, authService.DeviceToken);
+            }
+
+            var isValidId = Guid.TryParse(contentId, out _);
+            if (!isValidId)
+            {
+                Console.WriteLine("Error: You entered an invalid content id.");
+                return;
+            }
+
+            var updateUrl = PackageUrl + contentId;
+            var updateRequest = new HttpRequestMessage(HttpMethod.Get, updateUrl);
+            updateRequest.Headers.Add("Authorization", $"XBL3.0 x={_updateToken.UserInformation.Userhash};{_updateToken.Jwt}");
+
+            var updateResult = await updateHttpClient.SendAsync(updateRequest);
+            if (!updateResult.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"Failed to fetch package information. Status Code: {updateResult.StatusCode}");
+                return;
+            }
+
+            try
+            {
+                var updateData = await updateResult.Content.ReadAsJsonAsync<GetBasePackageResponse>();
+                if (!cliMode)
+                    Console.WriteLine("Got response!");
+
+                if (updateData.PackageFound)
                 {
-                    Console.WriteLine("Error: You entered an invalid content id.");
+                    foreach (var file in updateData.PackageFiles.Where(pred =>  // PC files have the .msixvc extension, Xbox files don't have any
+                                     !pred.FileName.EndsWith(".phf") &&
+                                     !pred.FileName.EndsWith(".xsp")))
+                            Console.WriteLine(cliMode ? file.CdnRootPaths[0] + file.RelativeUrl : $"{file.FileName} | Size: {file.FileSize} | Link: {file.CdnRootPaths[0] + file.RelativeUrl}");
                 }
                 else
                 {
-                    var updateUrl = PackageUrl + contentId;
-                    var updateRequest = new HttpRequestMessage(HttpMethod.Get, updateUrl);
-                    updateRequest.Headers.Add("Authorization", $"XBL3.0 x={_updateToken.UserInformation.Userhash};{_updateToken.Jwt}");
-
-                    var updateResult = await updateHttpClient.SendAsync(updateRequest);
-                    if (!updateResult.IsSuccessStatusCode)
-                        Console.WriteLine($"Failed to fetch package information. Status Code: {updateResult.StatusCode}");
-                    else
-                    {
-                        try
-                        {
-                            var updateData = await updateResult.Content.ReadAsJsonAsync<GetBasePackageResponse>();
-                            Console.WriteLine("Got response!");
-
-                            if (updateData.PackageFound)
-                            {
-                                foreach (var file in updateData.PackageFiles.Where(pred =>  // PC files have the .msixvc extension, Xbox files don't have any
-                                             !pred.FileName.EndsWith(".phf") &&
-                                             !pred.FileName.EndsWith(".xsp")))
-                                    Console.WriteLine($"{file.FileName} | Size: {file.FileSize} | Link: {file.CdnRootPaths[0] + file.RelativeUrl}");
-                            }
-                            else
-                            {
-                                Console.WriteLine("Error: Server did not find requested package.");
-                            }
-                        }
-                        catch (Exception e)
-                        {
-                            Console.WriteLine($"Error while parsing server response. {e}");
-                        }
-                    }
+                    Console.WriteLine("Error: Server did not find requested package.");
                 }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Error while parsing server response. {e}");
             }
         }
 
