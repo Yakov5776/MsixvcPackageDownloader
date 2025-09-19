@@ -9,24 +9,31 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            runtime: win-x64
+          - os: ubuntu-latest
+            runtime: linux-x64
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@v5
       with:
         dotnet-version: 8.0.x
 
     - name: Restore dependencies
       run: dotnet restore
-
-    - name: Build
-      run: dotnet build --no-restore --configuration Release
+      
+    - name: Publish
+      run: dotnet publish MsixvcPackageDownloader/MsixvcPackageDownloader.csproj -r ${{ matrix.runtime }} --self-contained true -p:PublishSingleFile=true --configuration Release
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: dotnet-build
-        path: MsixvcPackageDownloader/bin/Release/net8.0/*
+        name: ${{ matrix.runtime }}-build
+        path: MsixvcPackageDownloader/bin/Release/net8.0/${{ matrix.runtime }}/publish/*
