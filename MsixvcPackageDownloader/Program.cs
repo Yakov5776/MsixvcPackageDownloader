@@ -8,7 +8,7 @@ namespace MsixvcPackageDownloader
     internal class Program
     {
         private const string TokenFilename = "token.json";
-        private static string TokenPath => Path.Join(Directory.GetCurrentDirectory(), TokenFilename);
+        private static string TokenPath => Path.Join(AppContext.BaseDirectory, TokenFilename);
 
         private const string PackageUrl = "https://packagespc.xboxlive.com/GetBasePackage/";
 
