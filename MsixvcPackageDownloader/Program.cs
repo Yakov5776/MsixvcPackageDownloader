@@ -28,7 +28,8 @@ namespace MsixvcPackageDownloader
                 authService = await AuthenticationService.LoadFromJsonFileAsync(TokenPath);
                 if (!authService.XToken.Valid)
                 {
-                    Console.WriteLine("Token expired, please reauthenticate!");
+                    if (!cliMode)
+                        Console.WriteLine("Token expired, please reauthenticate!");
                     authService = null;
                 }
             }
@@ -39,12 +40,15 @@ namespace MsixvcPackageDownloader
                     AuthenticationService.GetWindowsLiveAuthenticationUrl(
                         new WindowsLiveAuthenticationQuery(clientId: "00000000402b5328"));
 
-                Console.WriteLine(
-                    "Please sign-in at this url in your browser, then paste the resulting URL back into this window and press enter.");
-                Console.WriteLine($"Url: {requestUrl}");
+                if (!cliMode)
+                {
+                    Console.WriteLine(
+                        "Please sign-in at this url in your browser, then paste the resulting URL back into this window and press enter.");
+                    Console.WriteLine($"Url: {requestUrl}");
+                }
 
-                var resultingUrl = Console.ReadLine();
-                if (resultingUrl == null)
+                var resultingUrl = File.Exists("authUrl.txt") ? File.ReadAllText("authUrl.txt") : Console.ReadLine();
+                if (string.IsNullOrEmpty(resultingUrl))
                     return;
 
                 if (!resultingUrl.Contains("refresh_token"))
