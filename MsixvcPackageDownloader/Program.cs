@@ -20,6 +20,13 @@ namespace MsixvcPackageDownloader
         /// <param name="args">Command line arguments. If provided, the first argument should be a ContentId for CLI mode.</param>
         static async Task Main(string[] args)
         {
+            // Check for help request
+            if (args.Length > 0 && (args[0] == "--help" || args[0] == "-h" || args[0] == "help"))
+            {
+                DisplayHelp();
+                return;
+            }
+
             bool cliMode = args.Length > 0;
             if (!cliMode)
                 Console.WriteLine("Initializing...");
@@ -217,6 +224,28 @@ namespace MsixvcPackageDownloader
                 Console.WriteLine($"Error while getting update XSTS token: {e.Message}");
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Displays help information for the application.
+        /// </summary>
+        private static void DisplayHelp()
+        {
+            Console.WriteLine("MSIX Package Downloader");
+            Console.WriteLine("=======================");
+            Console.WriteLine();
+            Console.WriteLine("A .NET application that downloads MSIX packages from Xbox Live services.");
+            Console.WriteLine();
+            Console.WriteLine("Usage:");
+            Console.WriteLine("  MsixvcPackageDownloader [ContentId]   Download package for specified Content ID");
+            Console.WriteLine("  MsixvcPackageDownloader               Run in interactive mode");
+            Console.WriteLine("  MsixvcPackageDownloader --help        Show this help message");
+            Console.WriteLine();
+            Console.WriteLine("Examples:");
+            Console.WriteLine("  MsixvcPackageDownloader 9WZDNCRFJ3TJ");
+            Console.WriteLine("  dotnet run -- 9WZDNCRFJ3TJ");
+            Console.WriteLine();
+            Console.WriteLine("Note: First run requires Xbox Live authentication through your browser.");
         }
     }
 }
