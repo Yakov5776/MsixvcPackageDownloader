@@ -50,11 +50,16 @@ namespace MsixvcPackageDownloader
                     AuthenticationService.GetWindowsLiveAuthenticationUrl(
                         new WindowsLiveAuthenticationQuery(clientId: Configuration.XboxLiveClientId));
 
-                if (!cliMode)
+                if (!cliMode || !File.Exists(Configuration.AuthUrlFilename))
                 {
                     Console.WriteLine(
                         "Please sign-in at this url in your browser, then paste the resulting URL back into this window and press enter.");
                     Console.WriteLine($"Url: {requestUrl}");
+                    
+                    if (cliMode)
+                    {
+                        Console.WriteLine("Tip: You can save the resulting URL to 'authUrl.txt' and rerun to authenticate automatically.");
+                    }
                 }
 
                 var resultingUrl = File.Exists(Configuration.AuthUrlFilename) 
@@ -242,8 +247,8 @@ namespace MsixvcPackageDownloader
             Console.WriteLine("  MsixvcPackageDownloader --help        Show this help message");
             Console.WriteLine();
             Console.WriteLine("Examples:");
-            Console.WriteLine("  MsixvcPackageDownloader 12345678-1234-1234-1234-123456789012");
-            Console.WriteLine("  dotnet run -- 12345678-1234-1234-1234-123456789012");
+            Console.WriteLine("  MsixvcPackageDownloader 51b27c18-6082-4877-8d9f-8b78b1bf356b");
+            Console.WriteLine("  dotnet run -- 51b27c18-6082-4877-8d9f-8b78b1bf356b");
             Console.WriteLine();
             Console.WriteLine("Note: First run requires Xbox Live authentication through your browser.");
         }

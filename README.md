@@ -11,7 +11,7 @@ dotnet run
 
 CLI mode with Content ID (GUID):
 ```bash
-dotnet run 12345678-1234-1234-1234-123456789012
+dotnet run 51b27c18-6082-4877-8d9f-8b78b1bf356b
 ```
 
 First run requires Xbox Live authentication through browser.
