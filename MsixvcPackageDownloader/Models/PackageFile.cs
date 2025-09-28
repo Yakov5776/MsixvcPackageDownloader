@@ -10,7 +10,6 @@ public class PackageFile : BasePackageFile
     public required string KeyBlob { get; set; }
     public required List<string> CdnRootPaths { get; set; }
     public required List<string> BackgroundCdnRootPaths { get; set; }
-    // RelativeUrl is inherited from BasePackageFile and doesn't need to be redeclared
     public uint UpdateType { get; set; } // TODO: I think this is an enum - find out all values
     public Guid? DeltaVersionId { get; set; }
     public uint LicenseUsageType { get; set; }

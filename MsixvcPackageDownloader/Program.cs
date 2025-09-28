@@ -88,7 +88,7 @@ namespace MsixvcPackageDownloader
             if (!cliMode)
                 Console.WriteLine("Initialization finished!");
 
-            using var updateHttpClient = new HttpClient(); // Use 'using' for proper disposal
+            using var updateHttpClient = new HttpClient();
 
             if (cliMode)
             {
@@ -231,10 +231,10 @@ namespace MsixvcPackageDownloader
         /// </summary>
         private static void DisplayHelp()
         {
-            Console.WriteLine("MSIX Package Downloader");
-            Console.WriteLine("=======================");
+            Console.WriteLine("MSIXVC Package Downloader");
+            Console.WriteLine("=========================");
             Console.WriteLine();
-            Console.WriteLine("A .NET application that downloads MSIX packages from Xbox Live services.");
+            Console.WriteLine("A .NET application that downloads MSIXVC packages from Xbox Live services.");
             Console.WriteLine();
             Console.WriteLine("Usage:");
             Console.WriteLine("  MsixvcPackageDownloader [ContentId]   Download package for specified Content ID");
@@ -242,8 +242,8 @@ namespace MsixvcPackageDownloader
             Console.WriteLine("  MsixvcPackageDownloader --help        Show this help message");
             Console.WriteLine();
             Console.WriteLine("Examples:");
-            Console.WriteLine("  MsixvcPackageDownloader 9WZDNCRFJ3TJ");
-            Console.WriteLine("  dotnet run -- 9WZDNCRFJ3TJ");
+            Console.WriteLine("  MsixvcPackageDownloader 12345678-1234-1234-1234-123456789012");
+            Console.WriteLine("  dotnet run -- 12345678-1234-1234-1234-123456789012");
             Console.WriteLine();
             Console.WriteLine("Note: First run requires Xbox Live authentication through your browser.");
         }
