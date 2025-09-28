@@ -58,7 +58,7 @@ namespace MsixvcPackageDownloader
                     
                     if (cliMode)
                     {
-                        Console.WriteLine("Tip: You can save the resulting URL to 'authUrl.txt' and rerun to authenticate automatically.");
+                        Console.WriteLine($"Tip: You can save the resulting URL to '{Configuration.AuthUrlFilename}' and rerun to authenticate automatically.");
                     }
                 }
 
