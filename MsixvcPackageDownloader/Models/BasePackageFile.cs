@@ -2,5 +2,5 @@
 
 public class BasePackageFile
 {
-    public string RelativeUrl { get; set; }
+    public required string RelativeUrl { get; set; }
 }

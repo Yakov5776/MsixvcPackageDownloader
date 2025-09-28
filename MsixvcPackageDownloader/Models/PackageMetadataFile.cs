@@ -2,7 +2,7 @@
 
 public class PackageMetadataFile : BasePackageFile
 {
-    public string Name { get; set; }
+    public required string Name { get; set; }
     public ulong Size { get; set; }
-    public string License { get; set; }
+    public required string License { get; set; }
 }

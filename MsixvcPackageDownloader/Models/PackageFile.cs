@@ -3,14 +3,13 @@
 public class PackageFile : BasePackageFile
 {
     public Guid ContentId { get; set; }
-    public string VersionId { get; set; }
-    public string FileName { get; set; }
+    public required string VersionId { get; set; }
+    public required string FileName { get; set; }
     public ulong FileSize { get; set; }
-    public string FileHash { get; set; }
-    public string KeyBlob { get; set; }
-    public List<string> CdnRootPaths { get; set; }
-    public List<string> BackgroundCdnRootPaths { get; set; }
-    public string RelativeUrl { get; set; }
+    public required string FileHash { get; set; }
+    public required string KeyBlob { get; set; }
+    public required List<string> CdnRootPaths { get; set; }
+    public required List<string> BackgroundCdnRootPaths { get; set; }
     public uint UpdateType { get; set; } // TODO: I think this is an enum - find out all values
     public Guid? DeltaVersionId { get; set; }
     public uint LicenseUsageType { get; set; }

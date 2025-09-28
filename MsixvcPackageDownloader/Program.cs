@@ -5,28 +5,38 @@ using XboxWebApi.Common;
 
 namespace MsixvcPackageDownloader
 {
+    /// <summary>
+    /// Main program class for the MSIX package downloader application.
+    /// This application provides functionality to download MSIX packages from Xbox Live services.
+    /// </summary>
     internal class Program
     {
-        private const string TokenFilename = "token.json";
-        private static string TokenPath => Path.Join(AppContext.BaseDirectory, TokenFilename);
+        private static XToken? _updateToken;
 
-        private const string PackageUrl = "https://packagespc.xboxlive.com/GetBasePackage/";
-
-        private static XToken _updateToken;
-
-        /* This is just a POC for this endpoint */
+        /// <summary>
+        /// Main entry point for the application.
+        /// This is just a POC for this endpoint.
+        /// </summary>
+        /// <param name="args">Command line arguments. If provided, the first argument should be a ContentId for CLI mode.</param>
         static async Task Main(string[] args)
         {
+            // Check for help request
+            if (args.Length > 0 && (args[0] == "--help" || args[0] == "-h" || args[0] == "help"))
+            {
+                DisplayHelp();
+                return;
+            }
+
             bool cliMode = args.Length > 0;
             if (!cliMode)
                 Console.WriteLine("Initializing...");
 
             AuthenticationService? authService = null;
 
-            if (File.Exists(TokenPath))
+            if (File.Exists(Configuration.TokenPath))
             {
-                authService = await AuthenticationService.LoadFromJsonFileAsync(TokenPath);
-                if (!authService.XToken.Valid)
+                authService = await AuthenticationService.LoadFromJsonFileAsync(Configuration.TokenPath);
+                if (authService.XToken?.Valid != true)
                 {
                     if (!cliMode)
                         Console.WriteLine("Token expired, please reauthenticate!");
@@ -38,21 +48,29 @@ namespace MsixvcPackageDownloader
             {
                 var requestUrl =
                     AuthenticationService.GetWindowsLiveAuthenticationUrl(
-                        new WindowsLiveAuthenticationQuery(clientId: "00000000402b5328"));
+                        new WindowsLiveAuthenticationQuery(clientId: Configuration.XboxLiveClientId));
 
-                if (!cliMode)
+                if (!cliMode || !File.Exists(Configuration.AuthUrlFilename))
                 {
                     Console.WriteLine(
                         "Please sign-in at this url in your browser, then paste the resulting URL back into this window and press enter.");
                     Console.WriteLine($"Url: {requestUrl}");
+                    
+                    if (cliMode)
+                    {
+                        Console.WriteLine($"Tip: You can save the resulting URL to '{Configuration.AuthUrlFilename}' and rerun to authenticate automatically.");
+                    }
                 }
 
-                var resultingUrl = File.Exists("authUrl.txt") ? File.ReadAllText("authUrl.txt") : Console.ReadLine();
+                var resultingUrl = File.Exists(Configuration.AuthUrlFilename) 
+                    ? File.ReadAllText(Configuration.AuthUrlFilename) 
+                    : Console.ReadLine();
+                
                 if (string.IsNullOrEmpty(resultingUrl))
                     return;
 
                 if (!resultingUrl.Contains("refresh_token"))
-                    resultingUrl += "&refresh_token=thisisunused";
+                    resultingUrl += $"&refresh_token={Configuration.DefaultRefreshToken}";
 
                 var response = AuthenticationService.ParseWindowsLiveResponse(resultingUrl);
 
@@ -61,14 +79,21 @@ namespace MsixvcPackageDownloader
                 authService.XToken = await AuthenticationService.AuthenticateXSTSAsync(authService.UserToken, authService.DeviceToken, authService.TitleToken);
             }
 
-            await authService.DumpToJsonFileAsync(TokenPath);
+            await authService.DumpToJsonFileAsync(Configuration.TokenPath);
 
-            await GetUpdateXSTSToken(authService.UserToken, authService.DeviceToken);
+            if (authService.UserToken != null && authService.DeviceToken != null)
+            {
+                await GetUpdateXSTSToken(authService.UserToken, authService.DeviceToken);
+            }
+            else
+            {
+                Console.WriteLine("Warning: Authentication tokens are not available. Some functionality may not work.");
+            }
 
             if (!cliMode)
                 Console.WriteLine("Initialization finished!");
 
-            var updateHttpClient = new HttpClient();
+            using var updateHttpClient = new HttpClient();
 
             if (cliMode)
             {
@@ -89,11 +114,18 @@ namespace MsixvcPackageDownloader
             }
         }
 
+        /// <summary>
+        /// Processes a content ID to fetch and display package information.
+        /// </summary>
+        /// <param name="contentId">The content ID of the package to process.</param>
+        /// <param name="updateHttpClient">The HTTP client to use for requests.</param>
+        /// <param name="authService">The authentication service instance.</param>
+        /// <param name="cliMode">Whether the application is running in CLI mode.</param>
         private static async Task ProcessContentId(string contentId, HttpClient updateHttpClient, AuthenticationService authService, bool cliMode)
         {
-            if (!_updateToken.Valid)
+            if (_updateToken?.Valid != true)
             {
-                if (!authService.UserToken.Valid || !authService.DeviceToken.Valid)
+                if (authService.UserToken?.Valid != true || authService.DeviceToken?.Valid != true)
                 {
                     if (!await authService.AuthenticateAsync())
                     {
@@ -102,19 +134,25 @@ namespace MsixvcPackageDownloader
                     }
                 }
 
-                await GetUpdateXSTSToken(authService.UserToken, authService.DeviceToken);
+                if (authService.UserToken != null && authService.DeviceToken != null)
+                {
+                    await GetUpdateXSTSToken(authService.UserToken, authService.DeviceToken);
+                }
             }
 
-            var isValidId = Guid.TryParse(contentId, out _);
-            if (!isValidId)
+            if (!Guid.TryParse(contentId, out _))
             {
                 Console.WriteLine("Error: You entered an invalid content id.");
                 return;
             }
 
-            var updateUrl = PackageUrl + contentId;
+            var updateUrl = Configuration.PackageServiceBaseUrl + contentId;
             var updateRequest = new HttpRequestMessage(HttpMethod.Get, updateUrl);
-            updateRequest.Headers.Add("Authorization", $"XBL3.0 x={_updateToken.UserInformation.Userhash};{_updateToken.Jwt}");
+            
+            if (_updateToken != null)
+            {
+                updateRequest.Headers.Add("Authorization", $"XBL3.0 x={_updateToken.UserInformation.Userhash};{_updateToken.Jwt}");
+            }
 
             var updateResult = await updateHttpClient.SendAsync(updateRequest);
             if (!updateResult.IsSuccessStatusCode)
@@ -129,12 +167,22 @@ namespace MsixvcPackageDownloader
                 if (!cliMode)
                     Console.WriteLine("Got response!");
 
-                if (updateData.PackageFound)
+                if (updateData?.PackageFound == true && updateData.PackageFiles != null)
                 {
-                    foreach (var file in updateData.PackageFiles.Where(pred =>  // PC files have the .msixvc extension, Xbox files don't have any
-                                     !pred.FileName.EndsWith(".phf") &&
-                                     !pred.FileName.EndsWith(".xsp")))
-                            Console.WriteLine(cliMode ? file.CdnRootPaths[0] + file.RelativeUrl : $"{file.FileName} | Size: {file.FileSize} | Link: {file.CdnRootPaths[0] + file.RelativeUrl}");
+                    var relevantFiles = updateData.PackageFiles.Where(file => 
+                        !Configuration.ExcludedFileExtensions.Any(ext => file.FileName.EndsWith(ext, StringComparison.OrdinalIgnoreCase)));
+
+                    foreach (var file in relevantFiles)
+                    {
+                        if (file.CdnRootPaths?.Count > 0)
+                        {
+                            var downloadUrl = file.CdnRootPaths[0] + file.RelativeUrl;
+                            var output = cliMode 
+                                ? downloadUrl 
+                                : $"{file.FileName} | Size: {file.FileSize} | Link: {downloadUrl}";
+                            Console.WriteLine(output);
+                        }
+                    }
                 }
                 else
                 {
@@ -143,23 +191,66 @@ namespace MsixvcPackageDownloader
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Error while parsing server response. {e}");
+                Console.WriteLine($"Error while parsing server response: {e.Message}");
             }
         }
 
+        /// <summary>
+        /// Gets an update XSTS token for accessing Xbox Live services.
+        /// </summary>
+        /// <param name="userToken">The user token for authentication.</param>
+        /// <param name="deviceToken">The device token for authentication.</param>
+        /// <returns>A task that represents the asynchronous operation. The task result indicates whether the operation was successful.</returns>
         public static async Task<bool> GetUpdateXSTSToken(UserToken userToken, DeviceToken deviceToken)
         {
-            var httpClient = AuthenticationService.ClientFactory("https://xsts.auth.xboxlive.com");
-            var request = new HttpRequestMessage(HttpMethod.Post, "xsts/authorize");
-            var xstsTokenRequest = new XSTSRequest(userToken, "http://update.xboxlive.com", deviceToken: deviceToken);
+            try
+            {
+                var httpClient = AuthenticationService.ClientFactory(Configuration.XstsAuthUrl);
+                var request = new HttpRequestMessage(HttpMethod.Post, "xsts/authorize");
+                var xstsTokenRequest = new XSTSRequest(userToken, Configuration.UpdateServiceAudience, deviceToken: deviceToken);
 
-            request.Headers.Add("x-xbl-contract-version", "1");
-            request.Content = new JsonContent(xstsTokenRequest);
+                request.Headers.Add("x-xbl-contract-version", "1");
+                request.Content = new JsonContent(xstsTokenRequest);
 
-            var response = await httpClient.SendAsync(request);
-            var responseData = await response.Content.ReadAsJsonAsync<XASResponse>();
-            _updateToken = new XToken(responseData);
-            return true;
+                var response = await httpClient.SendAsync(request);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"Failed to get update XSTS token. Status Code: {response.StatusCode}");
+                    return false;
+                }
+                
+                var responseData = await response.Content.ReadAsJsonAsync<XASResponse>();
+                _updateToken = new XToken(responseData);
+                return true;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Error while getting update XSTS token: {e.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Displays help information for the application.
+        /// </summary>
+        private static void DisplayHelp()
+        {
+            Console.WriteLine("MSIXVC Package Downloader");
+            Console.WriteLine("=========================");
+            Console.WriteLine();
+            Console.WriteLine("A .NET application that downloads MSIXVC packages from Xbox Live services.");
+            Console.WriteLine();
+            Console.WriteLine("Usage:");
+            Console.WriteLine("  MsixvcPackageDownloader [ContentId]   Download package for specified Content ID");
+            Console.WriteLine("  MsixvcPackageDownloader               Run in interactive mode");
+            Console.WriteLine("  MsixvcPackageDownloader --help        Show this help message");
+            Console.WriteLine();
+            Console.WriteLine("Examples:");
+            Console.WriteLine("  MsixvcPackageDownloader 51b27c18-6082-4877-8d9f-8b78b1bf356b");
+            Console.WriteLine("  dotnet run -- 51b27c18-6082-4877-8d9f-8b78b1bf356b");
+            Console.WriteLine();
+            Console.WriteLine("Note: First run requires Xbox Live authentication through your browser.");
         }
     }
 }
